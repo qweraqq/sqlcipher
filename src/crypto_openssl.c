@@ -64,7 +64,8 @@ static int sqlcipher_openssl_add_random(void *ctx, const void *buffer, int lengt
   return SQLITE_OK;
 }
 
-#define OPENSSL_CIPHER EVP_aes_256_cbc()
+/* Modfied for Chinese Guomi SM4-CBC support */
+#define OPENSSL_CIPHER EVP_sm4_cbc()
 
 /* activate and initialize sqlcipher. Most importantly, this will automatically
    intialize OpenSSL's EVP system if it hasn't already be externally. Note that 
@@ -162,6 +163,7 @@ static int sqlcipher_openssl_hmac(
   OSSL_PARAM sha1[] = { { "digest", OSSL_PARAM_UTF8_STRING, "sha1", 4, 0 }, OSSL_PARAM_END };
   OSSL_PARAM sha256[] = { { "digest", OSSL_PARAM_UTF8_STRING, "sha256", 6, 0 }, OSSL_PARAM_END };
   OSSL_PARAM sha512[] = { { "digest", OSSL_PARAM_UTF8_STRING, "sha512", 6, 0 }, OSSL_PARAM_END };
+  OSSL_PARAM sm3[] = { { "digest", OSSL_PARAM_UTF8_STRING, "sm3", 3, 0 }, OSSL_PARAM_END };
 
   if(in == NULL) goto error;
 
@@ -197,6 +199,13 @@ static int sqlcipher_openssl_hmac(
     case SQLCIPHER_HMAC_SHA512:
       if(!(rc = EVP_MAC_init(hctx, hmac_key, key_sz, sha512))) {
         sqlcipher_log(SQLCIPHER_LOG_ERROR, SQLCIPHER_LOG_PROVIDER, "sqlcipher_openssl_hmac: EVP_MAC_init() with key size %d and sha512 returned %d", key_sz, rc);
+        sqlcipher_openssl_log_errors();
+        goto error;
+      }
+      break;
+    case SQLCIPHER_HMAC_SM3:
+      if(!(rc = EVP_MAC_init(hctx, hmac_key, key_sz, sm3))) {
+        sqlcipher_log(SQLCIPHER_LOG_ERROR, SQLCIPHER_LOG_PROVIDER, "sqlcipher_openssl_hmac: EVP_MAC_init() with key size %d and sm3 returned %d", key_sz, rc);
         sqlcipher_openssl_log_errors();
         goto error;
       }
@@ -272,6 +281,13 @@ static int sqlcipher_openssl_kdf(
     case SQLCIPHER_HMAC_SHA512:
       if(!(rc = PKCS5_PBKDF2_HMAC((const char *)pass, pass_sz, salt, salt_sz, workfactor, EVP_sha512(), key_sz, key))) {
         sqlcipher_log(SQLCIPHER_LOG_ERROR, SQLCIPHER_LOG_PROVIDER, "sqlcipher_openssl_kdf: PKCS5_PBKDF2_HMAC() for EVP_sha512() workfactor %d and key size %d returned %d", workfactor, key_sz, rc);
+        sqlcipher_openssl_log_errors();
+        goto error;
+      }
+      break;
+    case SQLCIPHER_HMAC_SM3:
+      if(!(rc = PKCS5_PBKDF2_HMAC((const char *)pass, pass_sz, salt, salt_sz, workfactor, EVP_sm3(), key_sz, key))) {
+        sqlcipher_log(SQLCIPHER_LOG_ERROR, SQLCIPHER_LOG_PROVIDER, "sqlcipher_openssl_kdf: PKCS5_PBKDF2_HMAC() for EVP_sm3() workfactor %d and key size %d returned %d", workfactor, key_sz, rc);
         sqlcipher_openssl_log_errors();
         goto error;
       }
@@ -373,6 +389,9 @@ static int sqlcipher_openssl_get_hmac_sz(void *ctx, int algorithm) {
       break;
     case SQLCIPHER_HMAC_SHA512:
       return EVP_MD_size(EVP_sha512());
+      break;
+    case SQLCIPHER_HMAC_SM3:
+      return EVP_MD_size(EVP_sm3());
       break;
     default:
       return 0;

@@ -260,8 +260,8 @@ static volatile unsigned char hmac_salt_mask = HMAC_SALT_MASK;
 static volatile int default_kdf_iter = PBKDF2_ITER;
 static volatile int default_page_size = 4096;
 static volatile int default_plaintext_header_size = 0;
-static volatile int default_hmac_algorithm = SQLCIPHER_HMAC_SHA512;
-static volatile int default_kdf_algorithm = SQLCIPHER_PBKDF2_HMAC_SHA512;
+static volatile int default_hmac_algorithm = SQLCIPHER_HMAC_SM3;
+static volatile int default_kdf_algorithm = SQLCIPHER_PBKDF2_HMAC_SM3;
 static volatile int sqlcipher_mem_security_on = 0;
 static volatile int sqlcipher_mem_executed = 0;
 static volatile int sqlcipher_mem_initialized = 0;
@@ -1463,9 +1463,9 @@ static int sqlcipher_codec_ctx_init(codec_ctx **iCtx, Db *pDb, Pager *pPager, co
   ctx->pBt = pDb->pBt; /* assign pointer to database btree structure */
 
   /* allocate space for salt data. Then read the first 16 bytes 
-       directly off the database file. This is the salt for the
-       key derivation function. If we get a short read allocate
-       a new random salt value */
+         directly off the database file. This is the salt for the
+         key derivation function. If we get a short read allocate
+         a new random salt value */
   sqlcipher_log(SQLCIPHER_LOG_DEBUG, SQLCIPHER_LOG_MEMORY, "sqlcipher_codec_ctx_init: allocating kdf_salt");
   ctx->kdf_salt_sz = FILE_HEADER_SZ;
   ctx->kdf_salt = sqlcipher_malloc(ctx->kdf_salt_sz);
@@ -2336,7 +2336,7 @@ static int sqlcipher_cipher_profile(sqlite3 *db, const char *destination){
       if(fopen_s(&f, destination, "a") != 0) return SQLITE_ERROR;
 #else
       if((f = fopen(destination, "a")) == 0) return SQLITE_ERROR;
-#endif    
+#endif   
     }
     sqlite3_trace_v2(db, SQLITE_TRACE_PROFILE, sqlcipher_profile_callback, f);
   }
@@ -2887,6 +2887,8 @@ int sqlcipher_codec_pragma(sqlite3* db, int iDb, Parse *pParse, const char *zLef
           rc = sqlcipher_codec_ctx_set_hmac_algorithm(ctx, SQLCIPHER_HMAC_SHA256);
         } else if(sqlite3_stricmp(zRight, SQLCIPHER_HMAC_SHA512_LABEL) == 0) {
           rc = sqlcipher_codec_ctx_set_hmac_algorithm(ctx, SQLCIPHER_HMAC_SHA512);
+        } else if(sqlite3_stricmp(zRight, SQLCIPHER_HMAC_SM3_LABEL) == 0) {
+          rc = sqlcipher_codec_ctx_set_hmac_algorithm(ctx, SQLCIPHER_HMAC_SM3);
         }
         if (rc != SQLITE_OK) sqlcipher_codec_ctx_set_error(ctx, SQLITE_ERROR);
         rc = codec_set_btree_to_codec_pagesize(db, pDb, ctx);
@@ -2899,6 +2901,8 @@ int sqlcipher_codec_pragma(sqlite3* db, int iDb, Parse *pParse, const char *zLef
           sqlcipher_vdbe_return_string(pParse, "cipher_hmac_algorithm", SQLCIPHER_HMAC_SHA256_LABEL, P4_TRANSIENT);
         } else if(algorithm == SQLCIPHER_HMAC_SHA512) {
           sqlcipher_vdbe_return_string(pParse, "cipher_hmac_algorithm", SQLCIPHER_HMAC_SHA512_LABEL, P4_TRANSIENT);
+        } else if(algorithm == SQLCIPHER_HMAC_SM3) {
+          sqlcipher_vdbe_return_string(pParse, "cipher_hmac_algorithm", SQLCIPHER_HMAC_SM3_LABEL, P4_TRANSIENT);
         }
       }
     }
@@ -2912,6 +2916,8 @@ int sqlcipher_codec_pragma(sqlite3* db, int iDb, Parse *pParse, const char *zLef
         default_hmac_algorithm = SQLCIPHER_HMAC_SHA256;
       } else if(sqlite3_stricmp(zRight, SQLCIPHER_HMAC_SHA512_LABEL) == 0) {
         default_hmac_algorithm = SQLCIPHER_HMAC_SHA512;
+      } else if(sqlite3_stricmp(zRight, SQLCIPHER_HMAC_SM3_LABEL) == 0) {
+        default_hmac_algorithm = SQLCIPHER_HMAC_SM3;
       }
     } else {
       if(default_hmac_algorithm == SQLCIPHER_HMAC_SHA1) {
@@ -2920,6 +2926,8 @@ int sqlcipher_codec_pragma(sqlite3* db, int iDb, Parse *pParse, const char *zLef
         sqlcipher_vdbe_return_string(pParse, "cipher_default_hmac_algorithm", SQLCIPHER_HMAC_SHA256_LABEL, P4_TRANSIENT);
       } else if(default_hmac_algorithm == SQLCIPHER_HMAC_SHA512) {
         sqlcipher_vdbe_return_string(pParse, "cipher_default_hmac_algorithm", SQLCIPHER_HMAC_SHA512_LABEL, P4_TRANSIENT);
+      } else if(default_hmac_algorithm == SQLCIPHER_HMAC_SM3) {
+        sqlcipher_vdbe_return_string(pParse, "cipher_default_hmac_algorithm", SQLCIPHER_HMAC_SM3_LABEL, P4_TRANSIENT);
       }
     }
   }else 
@@ -2933,6 +2941,8 @@ int sqlcipher_codec_pragma(sqlite3* db, int iDb, Parse *pParse, const char *zLef
           rc = sqlcipher_codec_ctx_set_kdf_algorithm(ctx, SQLCIPHER_PBKDF2_HMAC_SHA256);
         } else if(sqlite3_stricmp(zRight, SQLCIPHER_PBKDF2_HMAC_SHA512_LABEL) == 0) {
           rc = sqlcipher_codec_ctx_set_kdf_algorithm(ctx, SQLCIPHER_PBKDF2_HMAC_SHA512);
+        } else if(sqlite3_stricmp(zRight, SQLCIPHER_PBKDF2_HMAC_SM3_LABEL) == 0) {
+          rc = sqlcipher_codec_ctx_set_kdf_algorithm(ctx, SQLCIPHER_PBKDF2_HMAC_SM3);
         }
         if (rc != SQLITE_OK) sqlcipher_codec_ctx_set_error(ctx, SQLITE_ERROR);
       } else {
@@ -2942,6 +2952,8 @@ int sqlcipher_codec_pragma(sqlite3* db, int iDb, Parse *pParse, const char *zLef
           sqlcipher_vdbe_return_string(pParse, "cipher_kdf_algorithm", SQLCIPHER_PBKDF2_HMAC_SHA256_LABEL, P4_TRANSIENT);
         } else if(ctx->kdf_algorithm == SQLCIPHER_PBKDF2_HMAC_SHA512) {
           sqlcipher_vdbe_return_string(pParse, "cipher_kdf_algorithm", SQLCIPHER_PBKDF2_HMAC_SHA512_LABEL, P4_TRANSIENT);
+        } else if(ctx->kdf_algorithm == SQLCIPHER_PBKDF2_HMAC_SM3) {
+          sqlcipher_vdbe_return_string(pParse, "cipher_kdf_algorithm", SQLCIPHER_PBKDF2_HMAC_SM3_LABEL, P4_TRANSIENT);
         }
       }
     }
@@ -2955,6 +2967,8 @@ int sqlcipher_codec_pragma(sqlite3* db, int iDb, Parse *pParse, const char *zLef
         default_kdf_algorithm = SQLCIPHER_PBKDF2_HMAC_SHA256;
       } else if(sqlite3_stricmp(zRight, SQLCIPHER_PBKDF2_HMAC_SHA512_LABEL) == 0) {
         default_kdf_algorithm = SQLCIPHER_PBKDF2_HMAC_SHA512;
+      } else if(sqlite3_stricmp(zRight, SQLCIPHER_PBKDF2_HMAC_SM3_LABEL) == 0) {
+        default_kdf_algorithm = SQLCIPHER_PBKDF2_HMAC_SM3;
       }
     } else {
       if(default_kdf_algorithm == SQLCIPHER_PBKDF2_HMAC_SHA1) {
@@ -2963,6 +2977,8 @@ int sqlcipher_codec_pragma(sqlite3* db, int iDb, Parse *pParse, const char *zLef
         sqlcipher_vdbe_return_string(pParse, "cipher_default_kdf_algorithm", SQLCIPHER_PBKDF2_HMAC_SHA256_LABEL, P4_TRANSIENT);
       } else if(default_kdf_algorithm == SQLCIPHER_PBKDF2_HMAC_SHA512) {
         sqlcipher_vdbe_return_string(pParse, "cipher_default_kdf_algorithm", SQLCIPHER_PBKDF2_HMAC_SHA512_LABEL, P4_TRANSIENT);
+      } else if(default_kdf_algorithm == SQLCIPHER_PBKDF2_HMAC_SM3) {
+        sqlcipher_vdbe_return_string(pParse, "cipher_default_kdf_algorithm", SQLCIPHER_PBKDF2_HMAC_SM3_LABEL, P4_TRANSIENT);
       }
     }
   }else
@@ -3111,6 +3127,8 @@ int sqlcipher_codec_pragma(sqlite3* db, int iDb, Parse *pParse, const char *zLef
         pragma = sqlite3_mprintf("PRAGMA cipher_hmac_algorithm = %s;", SQLCIPHER_HMAC_SHA256_LABEL);
       } else if(algorithm == SQLCIPHER_HMAC_SHA512) {
         pragma = sqlite3_mprintf("PRAGMA cipher_hmac_algorithm = %s;", SQLCIPHER_HMAC_SHA512_LABEL);
+      } else if(algorithm == SQLCIPHER_HMAC_SM3) {
+        pragma = sqlite3_mprintf("PRAGMA cipher_hmac_algorithm = %s;", SQLCIPHER_HMAC_SM3_LABEL);
       }
       sqlcipher_vdbe_return_string(pParse, "pragma", pragma, P4_DYNAMIC);
 
@@ -3122,6 +3140,8 @@ int sqlcipher_codec_pragma(sqlite3* db, int iDb, Parse *pParse, const char *zLef
         pragma = sqlite3_mprintf("PRAGMA cipher_kdf_algorithm = %s;", SQLCIPHER_PBKDF2_HMAC_SHA256_LABEL);
       } else if(algorithm == SQLCIPHER_PBKDF2_HMAC_SHA512) {
         pragma = sqlite3_mprintf("PRAGMA cipher_kdf_algorithm = %s;", SQLCIPHER_PBKDF2_HMAC_SHA512_LABEL);
+      } else if(algorithm == SQLCIPHER_PBKDF2_HMAC_SM3) {
+        pragma = sqlite3_mprintf("PRAGMA cipher_kdf_algorithm = %s;", SQLCIPHER_PBKDF2_HMAC_SM3_LABEL);
       }
       sqlcipher_vdbe_return_string(pParse, "pragma", pragma, P4_DYNAMIC);
 
@@ -3149,6 +3169,8 @@ int sqlcipher_codec_pragma(sqlite3* db, int iDb, Parse *pParse, const char *zLef
       pragma = sqlite3_mprintf("PRAGMA cipher_default_hmac_algorithm = %s;", SQLCIPHER_HMAC_SHA256_LABEL);
     } else if(default_hmac_algorithm == SQLCIPHER_HMAC_SHA512) {
       pragma = sqlite3_mprintf("PRAGMA cipher_default_hmac_algorithm = %s;", SQLCIPHER_HMAC_SHA512_LABEL);
+    } else if(default_hmac_algorithm == SQLCIPHER_HMAC_SM3) {
+      pragma = sqlite3_mprintf("PRAGMA cipher_default_hmac_algorithm = %s;", SQLCIPHER_HMAC_SM3_LABEL);
     }
     sqlcipher_vdbe_return_string(pParse, "pragma", pragma, P4_DYNAMIC);
 
@@ -3159,6 +3181,8 @@ int sqlcipher_codec_pragma(sqlite3* db, int iDb, Parse *pParse, const char *zLef
       pragma = sqlite3_mprintf("PRAGMA cipher_default_kdf_algorithm = %s;", SQLCIPHER_PBKDF2_HMAC_SHA256_LABEL);
     } else if(default_kdf_algorithm == SQLCIPHER_PBKDF2_HMAC_SHA512) {
       pragma = sqlite3_mprintf("PRAGMA cipher_default_kdf_algorithm = %s;", SQLCIPHER_PBKDF2_HMAC_SHA512_LABEL);
+    } else if(default_kdf_algorithm == SQLCIPHER_PBKDF2_HMAC_SM3) {
+      pragma = sqlite3_mprintf("PRAGMA cipher_default_kdf_algorithm = %s;", SQLCIPHER_PBKDF2_HMAC_SM3_LABEL);
     }
     sqlcipher_vdbe_return_string(pParse, "pragma", pragma, P4_DYNAMIC);
   }else
@@ -3570,7 +3594,7 @@ int sqlite3_rekey_v2(sqlite3 *db, const char *zDb, const void *pKey, int nKey) {
       Pager *pPager = sqlite3BtreePager(pDb->pBt);
 
       ctx = (codec_ctx*) sqlcipherPagerGetCodec(pPager);
-     
+      
       if(ctx == NULL) { 
         /* there was no codec attached to this database, so this should do nothing! */ 
         sqlcipher_log(SQLCIPHER_LOG_ERROR, SQLCIPHER_LOG_CORE, "sqlite3_rekey_v2: no codec attached to db %s: rekey can't be used on an unencrypted database", zDb);
@@ -3582,7 +3606,7 @@ int sqlite3_rekey_v2(sqlite3 *db, const char *zDb, const void *pKey, int nKey) {
       sqlcipher_log(SQLCIPHER_LOG_TRACE, SQLCIPHER_LOG_MUTEX, "sqlite3_rekey_v2: entered database mutex %p", db->mutex);
 
       codec_set_pass_key(db, db_index, pKey, nKey, CIPHER_WRITE_CTX);
-    
+     
       /* do stuff here to rewrite the database 
       ** 1. Create a transaction on the database
       ** 2. Iterate through each page, reading it and then writing it.
