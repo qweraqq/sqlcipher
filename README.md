@@ -1,3 +1,42 @@
+## Build with Tongsuo for Guomi Support
+
+- Build tongsuo from source code
+```bash
+git clone https://github.com/Tongsuo-Project/Tongsuo.git
+cd Tongsuo
+./config --prefix=/usr/local/tongsuo
+make
+sudo make install
+```
+
+- Modify SQLCipher Source Code
+
+- Build SQLCipher (static linking tongsuo)
+```bash
+./configure --with-tempstore=yes \
+  CFLAGS="-DSQLITE_HAS_CODEC -DSQLITE_TEMP_STORE=2 -DSQLITE_EXTRA_INIT=sqlcipher_extra_init -DSQLITE_EXTRA_SHUTDOWN=sqlcipher_extra_shutdown -I/usr/local/tongsuo/include" \
+  LDFLAGS="/usr/local/tongsuo/lib/libcrypto.a"
+make
+```
+
+- How to use
+```sql
+PRAGMA key = 'KEY';
+
+PRAGMA cipher = 'sm4-cbc';
+PRAGMA cipher_kdf_algorithm = 'PBKDF2_HMAC_SM3';
+PRAGMA cipher_hmac_algorithm = 'HMAC_SM3';
+
+PRAGMA cipher_page_size = 4096;
+PRAGMA kdf_iter = 64000;
+
+SELECT count(*) FROM sqlite_master;
+```
+
+
+---
+---
+
 ## SQLCipher
 
 SQLCipher is a standalone fork of the [SQLite](https://www.sqlite.org/) database library that adds 256 bit AES encryption of database files and other security features like:
